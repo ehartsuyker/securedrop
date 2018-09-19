@@ -71,11 +71,12 @@ def config(tmpdir):
     cnf = SDConfig()
 
     data = tmpdir.mkdir('data')
+    cnf.SECUREDROP_DATA_ROOT = str(data)
+
     keys = data.mkdir('keys')
     os.chmod(str(keys), 0o700)
     store = data.mkdir('store')
     tmp = data.mkdir('tmp')
-    sqlite = data.join('db.sqlite')
 
     gpg = gnupg.GPG(homedir=str(keys))
     for ext in ['sec', 'pub']:
@@ -84,11 +85,9 @@ def config(tmpdir):
                                'test_journalist_key.{}'.format(ext))) as f:
             gpg.import_keys(f.read())
 
-    cnf.SECUREDROP_DATA_ROOT = str(data)
     cnf.GPG_KEY_DIR = str(keys)
     cnf.STORE_DIR = str(store)
     cnf.TEMP_DIR = str(tmp)
-    cnf.DATABASE_FILE = str(sqlite)
 
     # create the db file
     subprocess.check_call(['sqlite3', cnf.DATABASE_FILE, '.databases'])
