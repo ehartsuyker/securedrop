@@ -57,6 +57,8 @@ class Source(db.Model):
     flagged = Column(Boolean, default=False)
     last_updated = Column(DateTime)
     star = relationship("SourceStar", uselist=False, backref="source")
+    assigned_journalist_id = Column(Integer, ForeignKey('journalists.id'))
+    assigned_journalist = relationship('Journalist', backref='assigned_sources')
 
     # sources are "pending" and don't get displayed to journalists until they
     # submit something
