@@ -73,7 +73,7 @@ def make_blueprint(config):
             source.num_unread = len(
                 Submission.query.filter_by(source_id=source.id,
                                            downloaded=False).all())
-
+        
         return render_template('index.html',
                                unstarred=unstarred,
                                starred=starred)

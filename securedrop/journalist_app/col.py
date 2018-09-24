@@ -6,8 +6,8 @@ from flask_babel import gettext
 from sqlalchemy.orm.exc import NoResultFound
 
 from db import db
-from models import Submission
-from journalist_app.forms import ReplyForm
+from models import Submission, Source, Journalist
+from journalist_app.forms import ReplyForm, ChangeSourceAssignmentForm
 from journalist_app.utils import (make_star_true, make_star_false, get_source,
                                   delete_collection, col_download_unread,
                                   col_download_all, col_star, col_un_star,
@@ -31,11 +31,17 @@ def make_blueprint(config):
 
     @view.route('/<filesystem_id>')
     def col(filesystem_id):
-        form = ReplyForm()
+        reply_form = ReplyForm()
         source = get_source(filesystem_id)
         source.has_key = current_app.crypto_util.getkey(filesystem_id)
-        return render_template("col.html", filesystem_id=filesystem_id,
-                               source=source, form=form)
+        c_form = \
+            ChangeSourceAssignmentForm(journalist_uuid=source.assigned_journalist.uuid)
+        c_form.journalist_uuid.populate_choices()
+        return render_template("col.html",
+                               filesystem_id=filesystem_id,
+                               source=source,
+                               reply_form=reply_form,
+                               change_source_assignment_form=c_form)
 
     @view.route('/delete/<filesystem_id>', methods=('POST',))
     def delete_single(filesystem_id):
@@ -85,5 +91,40 @@ def make_blueprint(config):
 
         return send_file(current_app.storage.path(filesystem_id, fn),
                          mimetype="application/pgp-encrypted")
+
+    @view.route('/change-source-assignment/<filesystem_id>', methods=('POST',))
+    def change_source_assignment(filesystem_id):
+        from flask import current_app, request; current_app.logger.warn(request.form)
+        source = get_source(filesystem_id)
+        if source is None:
+            flash('Source not found.')
+            abort(404)
+
+        form = ChangeSourceAssignmentForm()
+        form.journalist_uuid.populate_choices()
+        if form.validate_on_submit():
+            if not form.journalist_uuid.data:
+                journalist = None
+            else:
+                journalist = Journalist.query.filter_by(
+                    uuid=form.journalist_uuid.data).one_or_none()
+                if journalist is None:
+                    abort(404)
+                source.assigned_journalist = journalist
+            db.session.add(source)
+            db.session.commit()
+            if journalist:
+                flash(gettext('Assigned "{source}" to "{journalist}".')
+                      .format(source=source.journalist_designation,
+                              journalist=journalist.username),
+                      'success')
+            else:
+                flash(gettext('Unassigned source {source}.')
+                      .format(source=source.journalist_designation),
+                      'success')
+        else:
+            flash(gettext('Unable to assign source.'), 'error')
+
+        return redirect(url_for('.col', filesystem_id=source.filesystem_id))
 
     return view

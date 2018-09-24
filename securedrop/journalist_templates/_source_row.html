@@ -28,4 +28,7 @@
       </span>
     {% endif %}
   </div>
+  <div class="source-assignment">
+    <span><i class="far fa-user"></i> {{ source.assigned_journalist.username | default('(' + gettext('unassigned') + ')') }}</span>
+  </div>
 </li>

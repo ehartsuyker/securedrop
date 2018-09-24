@@ -33,16 +33,15 @@ def minimum_length_validation(form, field):
 class JournalistSelectField(SelectField):
 
     def __init__(self, *nargs, **kwargs):
-        '''A select field that validates that a journalist is present.
+        '''A select field that lists all current journalists.
            Has the kwargs 'is_optional' that specifices if a journalist must
-           be selected.
+           be selected on submit.
            :param *nargs: args passed to super()
            :param **kwargs: args passed to super()
         '''
         for arg in ['validators', 'choices', 'coerce']:
             if arg in kwargs:
-                raise ValueError('Cannot set {} on {}'
-                                 .format(arg, self.__class__.__name__))
+                raise ValueError('Cannot set arg: {}'.format(arg))
 
         self.__is_optional = kwargs.pop('is_optional', True)
         if self.__is_optional:
@@ -51,11 +50,9 @@ class JournalistSelectField(SelectField):
             resence = InputRequired()
 
         kwargs['validators'] = [presence]
-        kwargs['choices'] = self.__choices()
-        kwargs['coerce'] = self.__coerce
         super(JournalistSelectField, self).__init__(*nargs, **kwargs)
 
-    def iter_choices(self):
+    def populate_choices(self):
         if self.__is_optional:
             none_str = '({})'.format(gettext('unassigned'))
         else:
@@ -63,19 +60,10 @@ class JournalistSelectField(SelectField):
 
         # comparisons against self.data are to 'preselect' the current field
         # when this field is rendered in the UI
-        choices = [('', none_str, self.data is None)]
-        choices += [(x[0], x[1], x[1] == self.data) for x in self.__choices()]
-
-        return choices
-
-    @classmethod
-    def __choices(cls):
-        query = Journalist.query.order_by(Journalist.username)
-        return [(j.uuid, j.username) for j in query.all()]
-
-    @classmethod
-    def __coerce(cls, value):
-        return Journalist.query.filter_by(uuid=value).one_or_none()
+        journalists = Journalist.query.order_by(Journalist.username).all()
+        choices = [('', none_str)]
+        choices += [(j.uuid, j.username) for j in journalists]
+        self.choices = choices
 
 
 class NewUserForm(FlaskForm):
@@ -112,4 +100,5 @@ class LogoForm(FlaskForm):
 
 
 class ChangeSourceAssignmentForm(FlaskForm):
-    journalist = JournalistSelectField(label='Assigned Journalist')
+
+    journalist_uuid = JournalistSelectField(label='Assigned Journalist')
