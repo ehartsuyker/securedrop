@@ -4,7 +4,7 @@ from flask_babel import lazy_gettext as gettext
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed, FileRequired
 from wtforms import (TextAreaField, TextField, BooleanField, HiddenField,
-                     ValidationError)
+                     ValidationError, Field, SelectField)
 from wtforms.validators import InputRequired, Optional
 
 from models import Journalist
@@ -28,6 +28,54 @@ def minimum_length_validation(form, field):
                     '{num_chars}.'.format(
                         min_chars=Journalist.MIN_USERNAME_LEN,
                         num_chars=len(field.data))))
+
+
+class JournalistSelectField(SelectField):
+
+    def __init__(self, *nargs, **kwargs):
+        '''A select field that validates that a journalist is present.
+           Has the kwargs 'is_optional' that specifices if a journalist must
+           be selected.
+           :param *nargs: args passed to super()
+           :param **kwargs: args passed to super()
+        '''
+        for arg in ['validators', 'choices', 'coerce']:
+            if arg in kwargs:
+                raise ValueError('Cannot set {} on {}'
+                                 .format(arg, self.__class__.__name__))
+
+        self.__is_optional = kwargs.pop('is_optional', True)
+        if self.__is_optional:
+            presence = Optional()
+        else:
+            resence = InputRequired()
+
+        kwargs['validators'] = [presence]
+        kwargs['choices'] = self.__choices()
+        kwargs['coerce'] = self.__coerce
+        super(JournalistSelectField, self).__init__(*nargs, **kwargs)
+
+    def iter_choices(self):
+        if self.__is_optional:
+            none_str = '({})'.format(gettext('unassigned'))
+        else:
+            none_str = ''
+
+        # comparisons against self.data are to 'preselect' the current field
+        # when this field is rendered in the UI
+        choices = [('', none_str, self.data is None)]
+        choices += [(x[0], x[1], x[1] == self.data) for x in self.__choices()]
+
+        return choices
+
+    @classmethod
+    def __choices(cls):
+        query = Journalist.query.order_by(Journalist.username)
+        return [(j.uuid, j.username) for j in query.all()]
+
+    @classmethod
+    def __coerce(cls, value):
+        return Journalist.query.filter_by(uuid=value).one_or_none()
 
 
 class NewUserForm(FlaskForm):
@@ -61,3 +109,7 @@ class LogoForm(FlaskForm):
         FileAllowed(['png'],
                     message=gettext("You can only upload PNG image files."))
     ])
+
+
+class ChangeSourceAssignmentForm(FlaskForm):
+    journalist = JournalistSelectField(label='Assigned Journalist')
