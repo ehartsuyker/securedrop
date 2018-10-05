@@ -4,10 +4,11 @@
 import gnupg
 import os
 import io
+import subprocess
 import shutil
 import threading
 
-from os.path import abspath, dirname, isdir, join, realpath
+from os.path import abspath, dirname, join, realpath
 
 os.environ['SECUREDROP_ENV'] = 'test'  # noqa
 from sdconfig import config
@@ -29,8 +30,10 @@ def create_directories():
     """
     for d in (config.SECUREDROP_DATA_ROOT, config.STORE_DIR,
               config.GPG_KEY_DIR, config.TEMP_DIR):
-        if not isdir(d):
-            os.mkdir(d)
+        # using subprocess because we need sudo for /var/lib/
+        subprocess.check_call(['sudo', 'mkdir', '-p', d])
+        id_str = '{}:{}'.format(os.getuid(), os.getgid())
+        subprocess.check_call(['sudo', 'chown', id_str, d])
 
 
 def init_gpg():
@@ -62,7 +65,9 @@ def teardown():
     db.session.remove()
     shutil.rmtree(config.TEMP_DIR)
     try:
-        shutil.rmtree(config.SECUREDROP_DATA_ROOT)
+        # using subprocess because we need sudo for /var/lib/
+        subprocess.check_call(['sudo', 'rm', '-rf',
+                               config.SECUREDROP_DATA_ROOT])
         # safeguard for #844
         assert not os.path.exists(config.SECUREDROP_DATA_ROOT)
     except OSError as exc:
